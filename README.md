@@ -29,12 +29,12 @@
 | 系统 | 双击运行 | 说明 |
 | --- | --- | --- |
 | Windows | **`启动.bat`** | 启动服务 + 2 秒后自动打开浏览器；若服务已在运行则直接打开页面 |
-| Windows | **`停止.bat`** | 结束后台服务进程 |
 | macOS / Linux | `npm start` | 启动服务（`node server.js`），手动打开 <http://127.0.0.1:8787> |
 
 换端口：`启动.bat 8790`。
 
-> 窗口保持打开即服务运行中，按 `Ctrl+C` 或关闭窗口即可停止。
+> 停止服务：关闭启动窗口或按 `Ctrl+C` 即可，无需单独的停止脚本
+> （`scripts/stop.ps1` 仅供启动脚本在「检测到旧版本自动重启」时内部调用）。
 > 首次使用请点击页面右上角「设置」，接入两个大模型 API。
 
 > ⚠️ **改动引擎（`src/*.js`）后必须重启服务才生效** —— 服务端逻辑在 Node 进程里，
@@ -187,8 +187,8 @@ D:\MulAgent
 │   └── style.css
 ├── scripts/
 │   ├── launch.ps1         # Windows 一键启动（中文界面，需 UTF-8 BOM）
-│   └── stop.ps1           # Windows 停止服务
-├── 启动.bat / 停止.bat    # Windows 双击入口（内容纯 ASCII）
+│   └── stop.ps1           # 停止服务（启动脚本自动重启时内部调用）
+├── 启动.bat               # Windows 双击入口（内容纯 ASCII）
 ├── test/
 │   ├── mock-provider.js   # 本地模拟大模型服务（无需真实 Key）
 │   ├── e2e.mjs            # 端到端自测
