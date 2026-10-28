@@ -1,0 +1,16 @@
+{
+  "name": "multi-agent-debate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "多智能体辩论平台：接入两个大模型 API，正反方自动对抗，界面实时观战",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "mock": "node test/mock-provider.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

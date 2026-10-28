@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>多智能体辩论平台</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⚔️</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">⚔</span>
+      <div class="brand-text">
+        <h1>多智能体辩论平台<span class="ver" id="build-tag" title="服务端版本"></span></h1>
+        <p>两大模型 API · 正反方自动对抗 · 全程实时观战</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="conn" id="conn-status" title="连接状态">
+        <span class="dot" id="conn-dot"></span><span id="conn-text">空闲</span>
+      </div>
+      <button class="btn ghost icon-btn-theme" id="btn-theme" title="切换浅色 / 深色模式">🌙</button>
+      <button class="btn ghost" id="btn-export" title="导出为 Markdown">⤓ 导出</button>
+      <button class="btn primary" id="btn-settings">⚙ 设置</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <section class="card">
+        <div class="mode-switch" id="mode-switch">
+          <button class="mode-btn active" data-mode="debate" title="两个模型就一个辩题正反交锋">⚔ 辩论模式</button>
+          <button class="mode-btn" data-mode="chat" title="两个模型自由聊天，不设辩题与规则">💬 自由聊天</button>
+        </div>
+
+        <div class="field" id="topic-field">
+          <span class="label" id="topic-label">辩题</span>
+          <textarea id="topic" rows="3" placeholder="例如：人工智能生成内容应当强制标注"></textarea>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="label" id="rounds-label" title="每轮双方各发言一次">交锋轮数</span>
+            <input id="rounds" type="number" min="1" max="200" value="20" />
+          </label>
+          <label class="field" id="wordlimit-field">
+            <span class="label">单次发言字数</span>
+            <input id="wordLimit" type="number" min="80" max="2000" step="20" value="400" />
+          </label>
+        </div>
+
+        <div class="field-row" id="style-row">
+          <label class="field">
+            <span class="label">辩风</span>
+            <select id="style">
+              <option value="standard">稳健理性</option>
+              <option value="aggressive">犀利进攻</option>
+              <option value="academic">学术严谨</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="label">评委使用</span>
+            <select id="judgeSource">
+              <option value="pro">正方 API</option>
+              <option value="con">反方 API</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="check" id="judge-row">
+          <input type="checkbox" id="judgeEnabled" checked />
+          <span>结束后生成评委点评</span>
+        </label>
+
+        <div class="actions">
+          <button class="btn primary grow" id="btn-start" disabled>▶ 开始辩论</button>
+          <button class="btn danger" id="btn-stop" disabled>■ 停止</button>
+          <button class="btn ghost" id="btn-clear">✕ 清空</button>
+        </div>
+
+        <div class="notice" id="setup-notice" hidden>
+          还没有接入模型 API，点击右上角 <b>⚙ 设置</b> 填写正方与反方两个大模型的接口信息。
+        </div>
+      </section>
+
+      <section class="card">
+        <h3 class="card-title">对阵</h3>
+        <div class="vs-row">
+          <div class="vs-side pro">
+            <span class="vs-tag" id="pro-tag">正方</span>
+            <strong id="pro-name">未配置</strong>
+            <small id="pro-model">-</small>
+          </div>
+          <div class="vs-mid">VS</div>
+          <div class="vs-side con">
+            <span class="vs-tag" id="con-tag">反方</span>
+            <strong id="con-name">未配置</strong>
+            <small id="con-model">-</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="card stats-card" id="stats-card" hidden>
+        <h3 class="card-title">本次统计</h3>
+        <div class="stats-grid">
+          <div class="stat"><b id="stat-turns">0</b><span>发言数</span></div>
+          <div class="stat"><b id="stat-elapsed">0s</b><span>耗时</span></div>
+          <div class="stat"><b id="stat-tokens">0</b><span>Token</span></div>
+        </div>
+      </section>
+    </aside>
+
+    <main class="arena">
+      <div class="arena-head">
+        <div class="arena-topic">
+          <span class="chip" id="topic-chip">当前辩题</span>
+          <h2 id="arena-topic-text">等待选题</h2>
+        </div>
+        <div class="arena-meta" id="arena-meta"></div>
+      </div>
+
+      <div class="chat-toolbar">
+        <div class="seg" id="layout-switch">
+          <button class="seg-btn active" data-layout="group" title="正方、反方都在左侧，我的插话在右侧">群聊模式</button>
+          <button class="seg-btn" data-layout="duel" title="正方在左、反方在右，我的插话在右侧">对阵模式</button>
+        </div>
+        <span class="toolbar-hint" id="layout-hint">正方 / 反方发言在左侧，你的插话在右侧</span>
+      </div>
+
+      <div class="chat" id="chat">
+        <div class="empty" id="empty-hint">
+          <div class="empty-icon">⚔</div>
+          <p>在左侧输入辩题，配置好两个大模型 API，即可开始一场正反方对决。</p>
+        </div>
+      </div>
+
+      <div class="chat-input">
+        <input id="say-input" type="text" placeholder="给正方 / 反方插一句话…（会进入双方上下文并触发回应）" disabled />
+        <button class="btn primary" id="btn-say" disabled>发送</button>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="settings-modal" hidden>
+    <div class="modal">
+      <header class="modal-head">
+        <div>
+          <h2>模型 API 设置</h2>
+          <p class="modal-sub">分别接入正方与反方的大模型，两者可以来自不同厂商或不同模型。</p>
+        </div>
+        <button class="icon-btn" id="btn-close-settings" title="关闭">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <div class="api-grid" id="api-grid"></div>
+      </div>
+
+      <footer class="modal-foot">
+        <span class="modal-note" id="settings-note">API Key 仅保存在本机 data/settings.json，不会上传到任何第三方。</span>
+        <div class="foot-actions">
+          <button class="btn ghost" id="btn-cancel-settings">取消</button>
+          <button class="btn primary" id="btn-save-settings">保存设置</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

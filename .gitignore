@@ -1,0 +1,13 @@
+node_modules/
+data/
+.workbuddy/
+*.log
+.DS_Store
+Thumbs.db
+
+# 敏感配置与密钥，任何情况下都不进版本库
+.env
+.env.*
+*.key
+*.pem
+*.p12
