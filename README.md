@@ -16,9 +16,9 @@
 | --- | --- | --- |
 | Windows | **`启动.bat`** | 启动服务 + 2 秒后自动打开浏览器；若服务已在运行则直接打开页面 |
 | Windows | **`停止.bat`** | 结束后台服务进程 |
-| macOS / Linux | `./start.sh` | 启动服务 + 自动打开浏览器（`chmod +x start.sh` 首次执行一次） |
+| macOS / Linux | `npm start` | 启动服务（`node server.js`），手动打开 <http://127.0.0.1:8787> |
 
-换端口：`启动.bat 8790` 或 `./start.sh 8790`。
+换端口：`启动.bat 8790`。
 
 > 窗口保持打开即服务运行中，按 `Ctrl+C` 或关闭窗口即可停止。
 > 首次使用请点击页面右上角「设置」，接入两个大模型 API。
@@ -47,9 +47,8 @@ PORT=8790 HOST=0.0.0.0 node server.js
 ```
 
 > 要求 Node.js ≥ 18（内置 fetch 与 ESM）。本机实测 Node v24。
-> 提示：`run.bat` / `stop.bat` 为 ASCII 文件名，`启动.bat` / `停止.bat` 是中文快捷入口——
-> cmd.exe 按 GBK 解析 UTF-8 批处理会乱码，因此 .bat 保持纯 ASCII，中文界面由
-> 带 UTF-8 BOM 的 `scripts/launch.ps1`、`scripts/stop.ps1` 输出。
+> 提示：`.bat` 文件内容保持纯 ASCII——cmd.exe 按 GBK 解析 UTF-8 批处理会乱码，
+> 中文界面由带 UTF-8 BOM 的 `scripts/launch.ps1`、`scripts/stop.ps1` 输出。
 
 ---
 
@@ -175,9 +174,7 @@ D:\MulAgent
 ├── scripts/
 │   ├── launch.ps1         # Windows 一键启动（中文界面，需 UTF-8 BOM）
 │   └── stop.ps1           # Windows 停止服务
-├── 启动.bat / stop.bat    # Windows 一键启动 / 停止（ASCII 主体）
-├── 启动.bat / 停止.bat    # 中文名快捷入口（双击用）
-├── start.sh               # macOS / Linux 一键启动
+├── 启动.bat / 停止.bat    # Windows 双击入口（内容纯 ASCII）
 ├── test/
 │   ├── mock-provider.js   # 本地模拟大模型服务（无需真实 Key）
 │   ├── e2e.mjs            # 端到端自测

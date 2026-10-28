@@ -73,7 +73,6 @@ async function main() {
   console.log('\n▶ 场景 1：脚本文件完整性');
   check('scripts/launch.ps1 存在', fs.existsSync(LAUNCH));
   check('scripts/stop.ps1 存在', fs.existsSync(STOP));
-  check('run.bat 存在', fs.existsSync(path.join(ROOT, 'run.bat')));
   check('启动.bat 存在', fs.existsSync(path.join(ROOT, '启动.bat')));
   check('停止.bat 存在', fs.existsSync(path.join(ROOT, '停止.bat')));
   // UTF-8 BOM：没有 BOM 时 PowerShell 5.1 会把中文按 ANSI 解析成乱码
@@ -82,7 +81,7 @@ async function main() {
     check(`${path.basename(f)} 带 UTF-8 BOM（中文不乱码）`, b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF);
   }
   // .bat 必须纯 ASCII：cmd.exe 按 ANSI 解析 UTF-8 批处理，非 ASCII 会乱码甚至报错
-  for (const f of ['run.bat', 'stop.bat', '启动.bat', '停止.bat']) {
+  for (const f of ['启动.bat', '停止.bat']) {
     const b = fs.readFileSync(path.join(ROOT, f));
     const nonAscii = b.filter((x) => x > 127).length;
     check(`${f} 是纯 ASCII（cmd 不乱码）`, nonAscii === 0, `非 ASCII 字节 ${nonAscii} 个`);
