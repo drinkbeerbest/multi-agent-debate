@@ -23,7 +23,7 @@ const state = {
   theme: localStorage.getItem('debate.theme')
     || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
   messages: [],
-  rounds: { debate: 20, chat: 100 },   // 两种模式各自的轮数，互不干扰
+  rounds: { debate: 100, chat: 100 },   // 两种模式各自的轮数，互不干扰
   startedAt: 0,
   timer: null,
   seq: 0,
@@ -358,7 +358,7 @@ function applySettings(settings) {
   fillCfgForm('con', settings.con);
 
   // 两种模式的轮数分别记忆：辩论与聊天互不干扰
-  state.rounds.debate = Number(settings.debate.rounds) || 20;
+  state.rounds.debate = Number(settings.debate.rounds) || 100;
   state.rounds.chat = Number(settings.debate.chatRounds) || 100;
   $('rounds').value = state.rounds[state.mode];
   $('wordLimit').value = settings.debate.wordLimit;
@@ -527,7 +527,10 @@ async function startDebate() {
     state.running = true;
     state.sessionActive = true;
     state.startedAt = Date.now();
-    $('arena-topic-text').textContent = topic;
+    // 聊天模式允许不填话题，此时不要用空字符串把标题清掉
+    $('arena-topic-text').textContent = isChatMode()
+      ? (topic || '两个 AI 的自由对话')
+      : topic;
     $('btn-start').disabled = true;
     $('btn-stop').disabled = false;
     $('say-input').disabled = false;
@@ -571,7 +574,7 @@ function handleEvent(evt) {
     case 'session': {
       const chatMode = evt.mode === 'chat';
       $('arena-topic-text').textContent = chatMode
-        ? (evt.topic && evt.topic !== '自由聊天' ? evt.topic : '两个 AI 的自由对话')
+        ? (evt.topic || '两个 AI 的自由对话')
         : evt.topic;
       $('arena-meta').textContent = chatMode
         ? `${evt.pro.role || 'AI A'} · ${evt.con.role || 'AI B'} · ${evt.debate.rounds} 轮交流`

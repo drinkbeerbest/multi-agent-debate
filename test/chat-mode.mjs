@@ -47,6 +47,14 @@ async function main() {
   const debatePrompt = buildSystemPrompt('pro', '该不该用AI写作', { mode: MODES.DEBATE, wordLimit: 300 });
   check('辩论模式仍带辩题', debatePrompt.includes('该不该用AI写作'));
 
+  console.log('\n▶ 单元检查：聊天模式的话题');
+  const withTopic = buildSystemPrompt('pro', '如何提高睡眠质量', { mode: MODES.CHAT, label: 'Agent A' });
+  check('给出话题时写入提示词', withTopic.includes('如何提高睡眠质量'), withTopic);
+  check('带话题仍是单行', withTopic.split('\n').length === 1, `实际 ${withTopic.split('\n').length} 行`);
+  check('带话题不引入辩题/立场字样', !/辩题|正方|反方|立场/.test(withTopic));
+  const emptyTopic = buildSystemPrompt('pro', '', { mode: MODES.CHAT, label: 'Agent A' });
+  check('话题为空时不产生占位文案', !emptyTopic.includes('话题是「'), emptyTopic);
+
   console.log('\n▶ 单元检查：100 轮的排程');
   const cfg = { name: 'x', protocol: 'openai', baseUrl: 'http://127.0.0.1:1/v1', apiKey: 'k', model: 'm', maxTokens: 128 };
   const session = new DebateSession({

@@ -30,14 +30,14 @@ export function defaultSettings() {
     pro: defaultModelCfg({ name: '正方模型' }),
     con: defaultModelCfg({ name: '反方模型' }),
     debate: {
-      rounds: 20,         // 辩论模式：每方各发言几次
+      rounds: 100,        // 辩论模式：每方各发言几次
       chatRounds: 100,    // 自由聊天模式：每方各发言几次
       wordLimit: 400,     // 单次发言建议字数
       judgeEnabled: true, // 是否生成评委点评
       judgeSource: 'pro', // 评委使用哪一方的 API
       style: 'standard',  // standard | aggressive | academic
     },
-    migrations: { debateRounds20: false },
+    migrations: { debateRounds20: false, debateRounds100: false },
     updatedAt: null,
   };
 }
@@ -50,14 +50,25 @@ export function defaultSettings() {
  */
 function applyMigrations(raw) {
   const migrations = { ...(raw.migrations || {}) };
+  const debate = { ...(raw.debate || {}) };
   let changed = false;
+
+  // 历史迁移：默认辩论轮数从 3 → 20
   if (!migrations.debateRounds20) {
     migrations.debateRounds20 = true;
     changed = true;
-    if (Number(raw.debate?.rounds) === 3) {
-      raw.debate = { ...(raw.debate || {}), rounds: defaultSettings().debate.rounds };
-    }
+    if (Number(debate.rounds) === 3) debate.rounds = 20;
   }
+
+  // 默认辩论轮数从 20 → 100：只迁移「仍停留在旧默认值」的配置，
+  // 用户手动设过的其它值（例如 2、50）保持不动
+  if (!migrations.debateRounds100) {
+    migrations.debateRounds100 = true;
+    changed = true;
+    if (Number(debate.rounds) === 20) debate.rounds = 100;
+  }
+
+  if (changed) raw.debate = debate;
   return { migrations, changed };
 }
 

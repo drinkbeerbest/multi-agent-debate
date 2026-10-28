@@ -1,6 +1,7 @@
 /**
  * 设置持久化与「一次性迁移」自测。
- * 验证：辩论轮数默认值 3 → 20 的迁移只执行一次，之后用户手动设回 3 不会被覆盖。
+ * 验证：辩论轮数默认值 3 → 20 → 100 的迁移只执行一次，
+ * 之后用户手动设回 3 不会被覆盖。
  *
  * 运行：node test/settings-migrate.mjs
  */
@@ -36,13 +37,24 @@ async function main() {
     console.log('\n▶ 场景 1：老配置文件（rounds=3，无迁移标记）');
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(sample, null, 2), 'utf8');
     const s1 = mod.loadSettings();
-    check('轮数被迁移到 20', s1.debate.rounds === 20, `实际 ${s1.debate.rounds}`);
+    check('轮数从 3 一路迁到 100', s1.debate.rounds === 100, `实际 ${s1.debate.rounds}`);
     check('聊天轮数取新默认 100', s1.debate.chatRounds === 100, `实际 ${s1.debate.chatRounds}`);
-    check('迁移标记已写入', s1.migrations?.debateRounds20 === true);
+    check('两个迁移标记都已写入',
+      s1.migrations?.debateRounds20 === true && s1.migrations?.debateRounds100 === true);
     const onDisk = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
-    check('迁移结果已落盘', onDisk.debate.rounds === 20 && onDisk.migrations?.debateRounds20 === true);
+    check('迁移结果已落盘',
+      onDisk.debate.rounds === 100 && onDisk.migrations?.debateRounds100 === true);
     check('API 配置未被改动',
       onDisk.pro.apiKey === 'k1' && onDisk.con.apiKey === 'k2' && onDisk.pro.maxTokens === 10000);
+
+    console.log('\n▶ 场景 1b：已迁到 20 的老配置继续跟上 100');
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify({
+      ...sample,
+      debate: { ...sample.debate, rounds: 20 },
+      migrations: { debateRounds20: true },
+    }, null, 2), 'utf8');
+    const s1b = mod.loadSettings();
+    check('20 被迁到 100', s1b.debate.rounds === 100, `实际 ${s1b.debate.rounds}`);
 
     console.log('\n▶ 场景 2：迁移只执行一次，用户手动设回 3 不被覆盖');
     const manual = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
@@ -54,7 +66,7 @@ async function main() {
     console.log('\n▶ 场景 3：新装用户（无配置文件）');
     fs.rmSync(SETTINGS_FILE, { force: true });
     const s3 = mod.loadSettings();
-    check('默认辩论轮数 = 20', s3.debate.rounds === 20, `实际 ${s3.debate.rounds}`);
+    check('默认辩论轮数 = 100', s3.debate.rounds === 100, `实际 ${s3.debate.rounds}`);
     check('默认聊天轮数 = 100', s3.debate.chatRounds === 100, `实际 ${s3.debate.chatRounds}`);
 
     console.log('\n▶ 场景 4：轮数上限 200');

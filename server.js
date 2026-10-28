@@ -24,7 +24,7 @@ const HOST = process.env.HOST || '127.0.0.1';
  * 构建版本号：改动引擎（服务端逻辑）后请同步 +1，
  * 前端会显示这个版本，方便确认浏览器连的是不是重启后的新服务。
  */
-const BUILD = '2026-10-28.8';
+const BUILD = '2026-10-28.9';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -185,7 +185,9 @@ async function handleApi(req, res, url) {
     const debate = { ...merged.debate, judgeEnabled: mode === 'chat' ? false : merged.debate.judgeEnabled };
 
     const session = new DebateSession({
-      topic: topic || '自由聊天',
+      // 不在这里把空话题兜底成「自由聊天」：聊天模式需要区分「没给话题」和
+      // 「话题就叫自由聊天」，否则会把占位文字当成真话题塞进提示词
+      topic,
       mode,
       pro: merged.pro,
       con: merged.con,

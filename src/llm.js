@@ -130,7 +130,12 @@ export function buildRequest(cfg, messages, stream = false) {
   // openai 兼容
   const body = { model: cfg.model, messages: normalized };
   if (maxTokens) body.max_tokens = maxTokens;
-  if (stream) body.stream = true;
+  if (stream) {
+    body.stream = true;
+    // 流式默认不返回用量，必须显式要求厂商在末尾补一个 usage chunk，
+    // 否则整个会话的 token 统计永远是 0
+    body.stream_options = { include_usage: true };
+  }
   return { url: `${baseUrl}/chat/completions`, headers, body };
 }
 
@@ -181,6 +186,52 @@ export function extractDelta(data) {
   return '';
 }
 
+/**
+ * 从流式分片里提取用量，统一成 { prompt_tokens, completion_tokens }。
+ *
+ * 三种协议的字段位置和名字都不同：
+ *   OpenAI   —— 独立 chunk 的 usage.prompt_tokens / completion_tokens
+ *   Anthropic —— message_start 的 message.usage.input_tokens，message_delta 的 usage.output_tokens
+ *   Gemini   —— 末尾 chunk 的 usageMetadata.promptTokenCount / candidatesTokenCount
+ * 拿不到时返回 null，不要用 0 冒充，否则上层无法区分「没有用量」和「用量为零」。
+ */
+export function extractUsage(data) {
+  if (!data || typeof data !== 'object') return null;
+
+  const toPair = (p, c) => {
+    const prompt = Number(p);
+    const completion = Number(c);
+    if (!Number.isFinite(prompt) && !Number.isFinite(completion)) return null;
+    const out = {};
+    if (Number.isFinite(prompt)) out.prompt_tokens = prompt;
+    if (Number.isFinite(completion)) out.completion_tokens = completion;
+    return out;
+  };
+
+  // OpenAI 兼容
+  if (data.usage && typeof data.usage === 'object') {
+    const pair = toPair(
+      data.usage.prompt_tokens ?? data.usage.input_tokens,
+      data.usage.completion_tokens ?? data.usage.output_tokens,
+    );
+    if (pair) return pair;
+  }
+
+  // Anthropic：message_start 里嵌在 message.usage
+  if (data.message?.usage && typeof data.message.usage === 'object') {
+    const pair = toPair(data.message.usage.input_tokens, data.message.usage.output_tokens);
+    if (pair) return pair;
+  }
+
+  // Gemini
+  if (data.usageMetadata && typeof data.usageMetadata === 'object') {
+    const pair = toPair(data.usageMetadata.promptTokenCount, data.usageMetadata.candidatesTokenCount);
+    if (pair) return pair;
+  }
+
+  return null;
+}
+
 function withTimeout(signal, timeoutMs) {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   if (!signal) return timeoutSignal;
@@ -192,15 +243,19 @@ function withTimeout(signal, timeoutMs) {
 const MAX_TOKEN_FALLBACKS = [25000, 12000, 8192, 4096];
 
 /**
- * 发起请求，遇到「输出上限超限」类的 400 自动降级重试。
+ * 收到结束信号后，继续等待 usage chunk 的宽限期（毫秒）。
  *
- * 默认 max_tokens 调到 50000 是为了放开模型的发挥空间，但部分厂商的上限更低
- * （GPT-4o 16384、DeepSeek/Qwen 8192 等），直接发会被服务端 400 拒绝。
- * 这里逐级降到服务端能接受的数值，只在错误信息确实提到 token 上限时才降级。
- *
+ * OpenAI 兼容厂商的用量统计是在 finish_reason 之后单独补一帧的，
+ * 若一看到 finish_reason 就断开，token 永远统计不到。
+ * 又不能无限等（部分厂商发完内容不关连接），所以给一个很短的窗口。
+ */
+const USAGE_GRACE = 800;
+
+/**
+ * 内部：按输出上限逐级降级的请求循环。
  * @returns {{res: Response, downgradedFrom: number|null}}
  */
-async function requestWithTokenFallback(url, headers, body, fetchInit) {
+async function tokenFallbackAttempt(url, headers, body, fetchInit) {
   const key = 'max_tokens' in body ? 'max_tokens' : ('maxOutputTokens' in body ? 'maxOutputTokens' : null);
   const current = key ? Number(body[key]) || 0 : 0;
   const candidates = key && current > 8192
@@ -222,6 +277,27 @@ async function requestWithTokenFallback(url, headers, body, fetchInit) {
     if (res.status !== 400 || !isTokenLimitError || isLast) throw lastError;
   }
   throw lastError;
+}
+
+/**
+ * 发起请求，遇到「输出上限超限」类的 400 自动降级重试。
+ *
+ * 另外兜一层：stream_options 是较新的参数，老网关或自建代理可能直接 400，
+ * 此时去掉它重试一次 —— 代价只是拿不到 token 用量，不该让整场辩论失败。
+ *
+ * @returns {{res: Response, downgradedFrom: number|null}}
+ */
+async function requestWithTokenFallback(url, headers, body, fetchInit) {
+  try {
+    return await tokenFallbackAttempt(url, headers, body, fetchInit);
+  } catch (err) {
+    if (body.stream_options && /stream_options/i.test(err?.message || '')) {
+      const rest = { ...body };
+      delete rest.stream_options;
+      return tokenFallbackAttempt(url, headers, rest, fetchInit);
+    }
+    throw err;
+  }
 }
 
 /**
@@ -267,6 +343,7 @@ export async function streamChat(cfg, messages, opts = {}) {
   }
   const totalTimer = setTimeout(() => { timedOut = true; ctl.abort(); }, timeout);
   let idleTimer = null;
+  let graceTimer = null;   // 结束信号后的用量宽限计时器，finally 里要清理，故声明在外层
   const armIdle = () => {
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => { idleAborted = true; ctl.abort(); }, idleTimeout);
@@ -313,6 +390,8 @@ export async function streamChat(cfg, messages, opts = {}) {
     let full = '';
     let usage = null;
     let finished = false;
+    let sawDone = false;
+    let graceExpired = false;
 
     const handleLine = (rawLine) => {
       const line = rawLine.trim();
@@ -320,14 +399,15 @@ export async function streamChat(cfg, messages, opts = {}) {
       if (!line.startsWith('data:')) return;
       const payload = line.slice(5).trim();
       if (!payload) return;
-      if (payload === '[DONE]') { finished = true; return; }
+      if (payload === '[DONE]') { finished = true; sawDone = true; return; }
       let data;
       try {
         data = JSON.parse(payload);
       } catch {
         return;
       }
-      if (data?.usage) usage = data.usage;
+      const chunkUsage = extractUsage(data);
+      if (chunkUsage) usage = { ...(usage || {}), ...chunkUsage };
       if (isStreamEnd(data)) finished = true;
       const delta = extractDelta(data);
       if (delta) {
@@ -344,16 +424,21 @@ export async function streamChat(cfg, messages, opts = {}) {
           const parts = buffer.split(/\r?\n/);
           buffer = parts.pop() ?? '';
           for (const line of parts) handleLine(line);
-          if (finished) break;   // 已收到结束信号，立刻收尾，不再等连接关闭
+          if (sawDone) break;
+          if (finished && !graceTimer) {
+            // 结束信号已到，但 usage 往往在下一帧：留个短窗口继续读，
+            // 超时就主动断开，避免厂商不关连接时把整轮拖到空闲超时
+            graceTimer = setTimeout(() => { graceExpired = true; ctl.abort(); }, USAGE_GRACE);
+          }
         }
         if (!finished) {
           buffer += decoder.decode();
           if (buffer) handleLine(buffer);
         }
       } catch (err) {
-        // 用户主动中断 → 交给上层处理；空闲/总超时 → 按已收到的内容收尾
+        // 用户主动中断 → 交给上层处理；空闲/总超时/宽限期到点 → 按已收到的内容收尾
         if (signal?.aborted) throw err;
-        if (!idleAborted && !timedOut) throw err;
+        if (!idleAborted && !timedOut && !graceExpired) throw err;
       }
     }
 
@@ -361,6 +446,7 @@ export async function streamChat(cfg, messages, opts = {}) {
   } finally {
     clearTimeout(totalTimer);
     if (idleTimer) clearTimeout(idleTimer);
+    if (graceTimer) clearTimeout(graceTimer);
     try { await res.body?.cancel(); } catch { /* 连接可能已关闭 */ }
   }
 }

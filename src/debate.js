@@ -55,8 +55,12 @@ export function buildSystemPrompt(side, topic, opts = {}) {
 
   if (opts.mode === MODES.CHAT) {
     const label = opts.label || (side === 'pro' ? 'Agent A' : 'Agent B');
-    // 聊天模式刻意保持极简：只交代身份和在聊天，其余全部交给模型自由发挥
-    return `你是 ${label}，正在和一个 AI 聊天。`;
+    // 聊天模式刻意保持极简：身份 + 在聊天 +（给了话题就带上），其余交给模型自由发挥。
+    // 话题内联在同一行，避免提示词变长后又生出规则味。
+    const chatTopic = String(topic || '').trim();
+    return chatTopic
+      ? `你是 ${label}，正在和一个 AI 聊天，话题是「${chatTopic}」。`
+      : `你是 ${label}，正在和一个 AI 聊天。`;
   }
 
   const role = side === 'pro' ? '正方' : '反方';
@@ -91,7 +95,7 @@ export class DebateSession {
     this.options = options;
     this.mode = options.mode === MODES.CHAT ? MODES.CHAT : MODES.DEBATE;
     this.debate = {
-      rounds: 20,
+      rounds: 100,
       wordLimit: 400,
       judgeEnabled: true,
       judgeSource: 'pro',
@@ -157,6 +161,17 @@ export class DebateSession {
   }
 
   /* ---------- 事件 ---------- */
+
+  /**
+   * 累计一次模型调用的用量。
+   * 调用次数与 token 分开计：厂商不返回 usage 时，至少还能看出调用了多少次。
+   */
+  recordUsage(res) {
+    this.usage.calls += 1;
+    if (!res?.usage) return;
+    this.usage.promptTokens += Number(res.usage.prompt_tokens || 0);
+    this.usage.completionTokens += Number(res.usage.completion_tokens || 0);
+  }
 
   emit(event) {
     const payload = { ts: Date.now(), ...event };
@@ -326,11 +341,8 @@ export class DebateSession {
           message: '【提示】模型连接未正常结束，已按当前内容继续。',
         });
       }
-      if (res.usage) {
-        this.usage.promptTokens += Number(res.usage.prompt_tokens || res.usage.input_tokens || 0);
-        this.usage.completionTokens += Number(res.usage.completion_tokens || res.usage.output_tokens || 0);
-        this.usage.calls += 1;
-      }
+      // 调用次数与用量分开计：厂商不返回 usage 时，至少还能看出调用了多少次
+      this.recordUsage(res);
     } catch (err) {
       if (isAbortError(err) || this.controller.signal.aborted) {
         this.emit({ type: 'turn_end', side, phase, round, text, aborted: true });
@@ -434,6 +446,7 @@ export class DebateSession {
         },
       });
       if (res.text) text = res.text;
+      this.recordUsage(res);
       if (res.truncated) {
         this.emit({
           type: 'notice',
