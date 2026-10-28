@@ -1,20 +1,26 @@
 /**
- * 冒烟测试：对已在运行的实例跑一遍真实链路（配置 → 开辩 → SSE → 停止 → 记录）。
+ * 冒烟测试：自起私有实例跑一遍真实链路（配置 → 开辩 → SSE → 停止 → 记录）。
  *
  * 用法：node test/smoke.mjs
- * 默认目标：http://127.0.0.1:8787  （可用环境变量 SMOKE_BASE 覆盖）
- * 需要本地 Mock 模型服务运行在 http://127.0.0.1:8901
- *   node test/mock-provider.js
+ *
+ * 重要：本测试曾经「对着 8787 上已在运行的实例」发请求——那往往是用户自己的
+ * 真实服务，测试写入的 mock 配置会污染用户配置（服务内存里留下测试值，
+ * 即使退出时还原了文件，运行中的服务随后又把测试值写回磁盘）。
+ * 因此现在与 e2e.mjs 一致：自己 spawn mock + 服务端，用私有端口，绝不碰 8787。
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SETTINGS_FILE = path.resolve(__dirname, '..', 'data', 'settings.json');
+const ROOT = path.resolve(__dirname, '..');
+const SETTINGS_FILE = path.join(ROOT, 'data', 'settings.json');
 
-const BASE = process.env.SMOKE_BASE || 'http://127.0.0.1:8787';
-const MOCK = process.env.SMOCK_BASE || 'http://127.0.0.1:8901';
+const PORT = 8795;
+const MOCK_PORT = 8906;
+const BASE = `http://127.0.0.1:${PORT}`;
+const MOCK = `http://127.0.0.1:${MOCK_PORT}`;
 
 let failures = 0;
 const check = (label, ok, extra = '') => {
@@ -27,9 +33,10 @@ const model = (name, id) => ({
   model: id, maxTokens: 512,
 });
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function main() {
-  // 本测试通过 /api/settings 改写真实的 data/settings.json，
-  // 必须在进程退出时无条件还原，否则用户自己的模型配置会被 mock 参数覆盖。
+  // 双保险：虽然用私有实例，仍无条件还原 settings.json，防止任何意外写入。
   const originalSettings = fs.existsSync(SETTINGS_FILE)
     ? fs.readFileSync(SETTINGS_FILE, 'utf8')
     : null;
@@ -43,9 +50,24 @@ async function main() {
     } catch { /* 还原失败不阻塞退出 */ }
   });
 
-  console.log(`\n▶ 目标实例：${BASE}`);
-  const health = await fetch(`${BASE}/api/health`).then((r) => r.json()).catch(() => null);
-  check('服务在线', health?.ok === true, `uptime=${health?.uptime?.toFixed(1)}s`);
+  const mock = spawn(process.execPath, [path.join(ROOT, 'test', 'mock-provider.js')], {
+    env: { ...process.env, MOCK_PORT: String(MOCK_PORT) }, stdio: 'ignore',
+  });
+  const app = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1' }, stdio: 'ignore',
+  });
+  const cleanup = () => { for (const p of [app, mock]) { try { p.kill(); } catch { /* ignore */ } } };
+  process.on('exit', cleanup);
+  process.on('SIGINT', () => { cleanup(); process.exit(130); });
+
+  let up = null;
+  for (let i = 0; i < 40 && !up; i += 1) {
+    await sleep(250);
+    up = await fetch(`${BASE}/api/health`).then((r) => r.json()).catch(() => null);
+  }
+  if (!up) { cleanup(); throw new Error('私有实例未能启动'); }
+  console.log(`\n▶ 目标实例：${BASE}（私有，测试自起）`);
+  check('服务在线', up.ok === true, `uptime=${up.uptime?.toFixed(1)}s`);
 
   const page = await fetch(`${BASE}/`).then((r) => r.text()).catch(() => '');
   check('首页可访问', page.includes('多智能体辩论平台'));
@@ -135,6 +157,7 @@ async function main() {
   const stop = await fetch(`${BASE}/api/debate/${start.sessionId}/stop`, { method: 'POST' }).then((r) => r.json());
   check('停止接口可用', stop.ok === true);
 
+  cleanup();
   console.log(failures === 0 ? '\n🎉 冒烟测试全部通过\n' : `\n⚠️  有 ${failures} 项未通过\n`);
   process.exit(failures === 0 ? 0 : 1);
 }
