@@ -376,10 +376,25 @@ function applySettings(settings) {
  * 辩论台渲染（群聊式消息流）
  * ========================================================= */
 
+/**
+ * 粘底开关：只要用户向上滚动就停止自动跟随，
+ * 滚回距底部 40px 以内才恢复。阈值判断（如 200px）对滚轮的
+ * 增量滚动无效——每格只滚 ~100px，永远落在阈值内被拽回底部。
+ */
+let stickToBottom = true;
+
 function arenaScroll() {
+  if (!stickToBottom) return;
   const arena = document.querySelector('.arena');
-  const nearBottom = arena.scrollHeight - arena.scrollTop - arena.clientHeight < 200;
-  if (nearBottom) arena.scrollTop = arena.scrollHeight;
+  arena.scrollTop = arena.scrollHeight;
+}
+
+function watchArenaScroll() {
+  const arena = document.querySelector('.arena');
+  arena.addEventListener('scroll', () => {
+    const distance = arena.scrollHeight - arena.scrollTop - arena.clientHeight;
+    stickToBottom = distance < 40;
+  }, { passive: true });
 }
 
 function avatarText(msg) {
@@ -755,6 +770,7 @@ async function sendSay() {
     toast('请先开始一场辩论，再进行插话', 'warn');
     return;
   }
+  stickToBottom = true; // 主动插话 = 想看回应，恢复跟随底部
   try {
     const res = await fetch(`/api/debate/${state.sessionId}/say`, {
       method: 'POST',
@@ -914,6 +930,7 @@ async function init() {
   }
 
   $('btn-theme').addEventListener('click', toggleTheme);
+  watchArenaScroll();
   $('btn-settings').addEventListener('click', openSettings);
   $('btn-close-settings').addEventListener('click', closeSettings);
   $('btn-cancel-settings').addEventListener('click', closeSettings);
@@ -922,13 +939,17 @@ async function init() {
     if (e.target === $('settings-modal')) closeSettings();
   });
 
-  $('btn-start').addEventListener('click', startDebate);
+  $('btn-start').addEventListener('click', () => {
+    stickToBottom = true;
+    startDebate();
+  });
   $('btn-stop').addEventListener('click', stopDebate);
   $('btn-clear').addEventListener('click', () => {
     if (state.running) {
       toast('请先停止辩论', 'warn');
       return;
     }
+    stickToBottom = true;
     clearArena();
   });
   $('btn-export').addEventListener('click', exportMarkdown);
