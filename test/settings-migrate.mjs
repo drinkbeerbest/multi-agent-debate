@@ -39,8 +39,11 @@ async function main() {
     const s1 = mod.loadSettings();
     check('轮数从 3 一路迁到 100', s1.debate.rounds === 100, `实际 ${s1.debate.rounds}`);
     check('聊天轮数取新默认 100', s1.debate.chatRounds === 100, `实际 ${s1.debate.chatRounds}`);
-    check('两个迁移标记都已写入',
-      s1.migrations?.debateRounds20 === true && s1.migrations?.debateRounds100 === true);
+    check('字数从 400 迁到 50', s1.debate.wordLimit === 50, `实际 ${s1.debate.wordLimit}`);
+    check('辩风从 standard 迁到 aggressive', s1.debate.style === 'aggressive', `实际 ${s1.debate.style}`);
+    check('三个迁移标记都已写入',
+      s1.migrations?.debateRounds20 === true && s1.migrations?.debateRounds100 === true
+        && s1.migrations?.debateDefaults50 === true);
     const onDisk = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
     check('迁移结果已落盘',
       onDisk.debate.rounds === 100 && onDisk.migrations?.debateRounds100 === true);
@@ -59,15 +62,21 @@ async function main() {
     console.log('\n▶ 场景 2：迁移只执行一次，用户手动设回 3 不被覆盖');
     const manual = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
     manual.debate.rounds = 3;
+    manual.debate.wordLimit = 400;
+    manual.debate.style = 'standard';
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(manual, null, 2), 'utf8');
     const s2 = mod.loadSettings();
     check('手动设的 3 被保留', s2.debate.rounds === 3, `实际 ${s2.debate.rounds}`);
+    check('手动设的 400 字被保留', s2.debate.wordLimit === 400, `实际 ${s2.debate.wordLimit}`);
+    check('手动设的稳健理性被保留', s2.debate.style === 'standard', `实际 ${s2.debate.style}`);
 
     console.log('\n▶ 场景 3：新装用户（无配置文件）');
     fs.rmSync(SETTINGS_FILE, { force: true });
     const s3 = mod.loadSettings();
     check('默认辩论轮数 = 100', s3.debate.rounds === 100, `实际 ${s3.debate.rounds}`);
     check('默认聊天轮数 = 100', s3.debate.chatRounds === 100, `实际 ${s3.debate.chatRounds}`);
+    check('默认单次发言字数 = 50', s3.debate.wordLimit === 50, `实际 ${s3.debate.wordLimit}`);
+    check('默认辩风 = 犀利进攻', s3.debate.style === 'aggressive', `实际 ${s3.debate.style}`);
 
     console.log('\n▶ 场景 4：轮数上限 200');
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ ...sample, debate: { ...sample.debate, rounds: 9999, chatRounds: 9999 } }, null, 2), 'utf8');

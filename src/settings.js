@@ -32,12 +32,12 @@ export function defaultSettings() {
     debate: {
       rounds: 100,        // 辩论模式：每方各发言几次
       chatRounds: 100,    // 自由聊天模式：每方各发言几次
-      wordLimit: 400,     // 单次发言建议字数
+      wordLimit: 50,      // 单次发言建议字数
       judgeEnabled: true, // 是否生成评委点评
       judgeSource: 'pro', // 评委使用哪一方的 API
-      style: 'standard',  // standard | aggressive | academic
+      style: 'aggressive', // standard | aggressive | academic
     },
-    migrations: { debateRounds20: false, debateRounds100: false },
+    migrations: { debateRounds20: false, debateRounds100: false, debateDefaults50: false },
     updatedAt: null,
   };
 }
@@ -66,6 +66,15 @@ function applyMigrations(raw) {
     migrations.debateRounds100 = true;
     changed = true;
     if (Number(debate.rounds) === 20) debate.rounds = 100;
+  }
+
+  // 默认单次发言字数 400 → 50、辩风 standard → aggressive：
+  // 同样只迁移「仍停留在旧默认值」的配置，用户手动设过的值保持不动
+  if (!migrations.debateDefaults50) {
+    migrations.debateDefaults50 = true;
+    changed = true;
+    if (Number(debate.wordLimit) === 400) debate.wordLimit = 50;
+    if (debate.style === 'standard' || debate.style === undefined) debate.style = 'aggressive';
   }
 
   if (changed) raw.debate = debate;
@@ -102,7 +111,7 @@ function coerceDebate(raw = {}) {
   return {
     rounds: clamp(rounds, d.rounds),
     chatRounds: clamp(chatRounds, d.chatRounds),
-    wordLimit: Number.isFinite(wordLimit) ? Math.min(Math.max(Math.round(wordLimit), 80), 5000) : d.wordLimit,
+    wordLimit: Number.isFinite(wordLimit) ? Math.min(Math.max(Math.round(wordLimit), 20), 5000) : d.wordLimit,
     judgeEnabled: raw.judgeEnabled === undefined ? d.judgeEnabled : Boolean(raw.judgeEnabled),
     judgeSource: raw.judgeSource === 'con' ? 'con' : 'pro',
     style: ['standard', 'aggressive', 'academic'].includes(raw.style) ? raw.style : d.style,

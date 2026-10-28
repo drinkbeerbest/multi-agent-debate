@@ -326,7 +326,7 @@ async function saveSettings() {
   const debate = {
     rounds: state.rounds.debate,
     chatRounds: state.rounds.chat,
-    wordLimit: Number($('wordLimit').value) || 400,
+    wordLimit: Number($('wordLimit').value) || 50,
     style: $('style').value,
     judgeEnabled: $('judgeEnabled').checked,
     judgeSource: $('judgeSource').value,
@@ -574,7 +574,7 @@ async function startDebate() {
   const debate = {
     // 发给服务端的是当前模式的轮数
     rounds: Number($('rounds').value) || state.rounds[state.mode],
-    wordLimit: Number($('wordLimit').value) || 400,
+    wordLimit: Number($('wordLimit').value) || 50,
     style: $('style').value,
     judgeEnabled: $('judgeEnabled').checked,
     judgeSource: $('judgeSource').value,

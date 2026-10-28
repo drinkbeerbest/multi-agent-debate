@@ -26,7 +26,7 @@ export const MODES = {
 
 const STYLE_HINT = {
   standard: '表达稳健、讲求逻辑闭环。',
-  aggressive: '攻势凌厉，抓住对方漏洞穷追猛打，但不编造事实、不做人身攻击。',
+  aggressive: '攻势凌厉，抓住对方漏洞穷追猛打',
   academic: '注重概念界定与证据链条。',
 };
 
@@ -51,7 +51,7 @@ export function agentLabel(side, cfg, mode) {
  * 聊天模式：只说明「在和一个 AI 自由聊天」，不设辩题、不分立场、不加规则。
  */
 export function buildSystemPrompt(side, topic, opts = {}) {
-  const wordLimit = opts.wordLimit || 400;
+  const wordLimit = opts.wordLimit || 50;
 
   if (opts.mode === MODES.CHAT) {
     const label = opts.label || (side === 'pro' ? 'Agent A' : 'Agent B');
@@ -96,10 +96,10 @@ export class DebateSession {
     this.mode = options.mode === MODES.CHAT ? MODES.CHAT : MODES.DEBATE;
     this.debate = {
       rounds: 100,
-      wordLimit: 400,
+      wordLimit: 50,
       judgeEnabled: true,
       judgeSource: 'pro',
-      style: 'standard',
+      style: 'aggressive',
       ...(options.debate || {}),
     };
 
