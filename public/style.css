@@ -411,6 +411,32 @@ input:disabled { opacity: 0.6; cursor: not-allowed; }
   padding: 3px 12px; border-radius: 999px;
 }
 
+/* 结束卡片：流程停止后的落点，明确告诉用户还能继续追问 */
+.end-card {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  text-align: center;
+  margin: 14px 0 6px;
+  padding: 14px 18px;
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+.end-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.end-hint {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-mute);
+  max-width: 46ch;
+}
+
 /* 错误提示 */
 .msg-error .bubble {
   border-color: var(--err);

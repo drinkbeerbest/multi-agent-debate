@@ -27,6 +27,7 @@ const state = {
   startedAt: 0,
   timer: null,
   seq: 0,
+  endCardShown: false,   // 结束卡片只插入一次，后续追问结束不重复刷屏
 };
 
 let emptyTemplate = null;
@@ -114,9 +115,7 @@ function setMode(mode) {
   $('con-tag').textContent = chat ? 'Agent B' : '反方';
   $('topic-chip').textContent = chat ? '自由聊天' : '当前辩题';
   $('btn-start').textContent = chat ? '▶ 开始聊天' : '▶ 开始辩论';
-  $('say-input').placeholder = chat
-    ? '给两个 AI 插一句话…（会进入双方上下文并触发回应）'
-    : '给正方 / 反方插一句话…（会进入双方上下文并触发回应）';
+  refreshSayPlaceholder();
 
   if (emptyTemplate) {
     const p = emptyTemplate.querySelector('.empty p');
@@ -422,6 +421,43 @@ function buildDividerNode(msg) {
   return el('div', 'phase-tag', msg.label);
 }
 
+/**
+ * 结束卡片。
+ * 点评之前流程是自走的，用户不用操心；点评之后流程停了，
+ * 必须明确告诉用户「已经结束，但还能继续追问」，否则只能重新开一场。
+ */
+function buildEndNode(msg) {
+  const box = el('div', 'end-card');
+  box.appendChild(el('div', 'end-title', msg.title || '已结束'));
+  if (msg.hint) box.appendChild(el('div', 'end-hint', msg.hint));
+  return box;
+}
+
+function buildNodeByKind(msg) {
+  if (msg.kind === 'divider') return buildDividerNode(msg);
+  if (msg.kind === 'end') return buildEndNode(msg);
+  return buildMessageNode(msg);
+}
+
+/**
+ * 插话框提示语。
+ * 辩论结束后流程不再自走，提示语必须换成「可以继续追问」，
+ * 否则用户会以为这里只能重新开一场。
+ */
+function refreshSayPlaceholder() {
+  const chat = isChatMode();
+  const finished = !state.running && state.sessionActive;
+  if (finished) {
+    $('say-input').placeholder = chat
+      ? '继续说点什么，两个 agent 会接着回应…'
+      : '继续追问，正反方会回应你…';
+    return;
+  }
+  $('say-input').placeholder = chat
+    ? '给两个 AI 插一句话…（会进入双方上下文并触发回应）'
+    : '给正方 / 反方插一句话…（会进入双方上下文并触发回应）';
+}
+
 /** 依据 state.messages 重建整条消息流（切换布局 / 清空时调用）。 */
 function renderChat() {
   const chat = $('chat');
@@ -431,7 +467,7 @@ function renderChat() {
     return;
   }
   for (const msg of state.messages) {
-    chat.appendChild(msg.kind === 'divider' ? buildDividerNode(msg) : buildMessageNode(msg));
+    chat.appendChild(buildNodeByKind(msg));
   }
   arenaScroll();
 }
@@ -440,7 +476,7 @@ function pushMessage(msg) {
   state.messages.push(msg);
   const chat = $('chat');
   if (state.messages.length === 1) chat.innerHTML = '';
-  chat.appendChild(msg.kind === 'divider' ? buildDividerNode(msg) : buildMessageNode(msg));
+  chat.appendChild(buildNodeByKind(msg));
   arenaScroll();
   return msg;
 }
@@ -526,6 +562,7 @@ async function startDebate() {
     state.sessionId = data.sessionId;
     state.running = true;
     state.sessionActive = true;
+    state.endCardShown = false;
     state.startedAt = Date.now();
     // 聊天模式允许不填话题，此时不要用空字符串把标题清掉
     $('arena-topic-text').textContent = isChatMode()
@@ -540,6 +577,7 @@ async function startDebate() {
     $('stat-elapsed').textContent = '0s';
     $('stat-tokens').textContent = '0';
     setConn('辩论中', 'live');
+    refreshSayPlaceholder();
     state.timer = setInterval(() => {
       const s = Math.floor((Date.now() - state.startedAt) / 1000);
       $('stat-elapsed').textContent = `${s}s`;
@@ -652,6 +690,18 @@ function handleEvent(evt) {
       if (evt.reason === 'completed') {
         setConn('已完成', 'live');
         toast(isChatMode() ? '聊天结束' : '辩论结束', 'ok');
+        // 流程到这里不再自走，必须留下一个明确的落点，并说清还能做什么
+        if (!state.endCardShown) {
+          state.endCardShown = true;
+          pushMessage({
+            kind: 'end',
+            title: isChatMode() ? '聊天已结束' : '辩论已结束',
+            hint: isChatMode()
+              ? '两个 agent 已经聊完。还想继续的话，直接在下方接着说话，它们会回你；点「开始」可开启新一场。'
+              : '评委点评已结束。还想继续的话，直接在下方追问，正反方会回应你；点「开始」可开启新一场。',
+            ts: evt.ts,
+          });
+        }
       } else if (evt.reason === 'stopped') {
         setConn('已停止', '');
         toast(isChatMode() ? '聊天已停止' : '辩论已停止', 'warn');
@@ -659,6 +709,7 @@ function handleEvent(evt) {
         setConn('出错', 'error');
         toast('辩论异常结束：' + (evt.message || ''), 'err');
       }
+      refreshSayPlaceholder();
       break;
     }
     default:
@@ -716,8 +767,10 @@ function clearArena(silent = false) {
   state.sessionId = null;
   state.sessionActive = false;
   state.running = false;
+  state.endCardShown = false;
   $('say-input').disabled = true;
   $('btn-say').disabled = true;
+  refreshSayPlaceholder();
   renderChat();
   $('stat-turns').textContent = '0';
   $('stat-elapsed').textContent = '0s';
@@ -765,6 +818,11 @@ function buildMarkdown() {
     }
     if (msg.kind === 'error') {
       lines.push(`> ⚠️ ${msg.text}`);
+      lines.push('');
+      continue;
+    }
+    if (msg.kind === 'end') {
+      lines.push(`> ${msg.title || '已结束'}`);
       lines.push('');
       continue;
     }
