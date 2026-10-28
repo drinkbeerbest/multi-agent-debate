@@ -20,8 +20,7 @@ const state = {
   sessionActive: false,
   layout: localStorage.getItem('debate.layout') || 'group',
   mode: localStorage.getItem('debate.mode') || 'debate',
-  theme: localStorage.getItem('debate.theme')
-    || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
+  theme: localStorage.getItem('debate.theme') || 'light',
   messages: [],
   rounds: { debate: 100, chat: 100 },   // 两种模式各自的轮数，互不干扰
   startedAt: 0,
@@ -65,7 +64,7 @@ function setConn(text, kind = '') {
 function applyTheme(theme) {
   state.theme = theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = state.theme;
-  $('btn-theme').textContent = state.theme === 'light' ? '☀️' : '🌙';
+  $('btn-theme').textContent = '◐';
   $('btn-theme').title = state.theme === 'light' ? '切换到深色模式' : '切换到浅色模式';
   localStorage.setItem('debate.theme', state.theme);
 }
@@ -114,7 +113,7 @@ function setMode(mode) {
   $('pro-tag').textContent = chat ? 'Agent A' : '正方';
   $('con-tag').textContent = chat ? 'Agent B' : '反方';
   $('topic-chip').textContent = chat ? '自由聊天' : '当前辩题';
-  $('btn-start').textContent = chat ? '▶ 开始聊天' : '▶ 开始辩论';
+  $('btn-start').textContent = chat ? '开始聊天' : '开始辩论';
   refreshSayPlaceholder();
 
   if (emptyTemplate) {
@@ -203,12 +202,12 @@ function apiCardHtml(side) {
       </label>
 
       <label class="field full">
-        <span class="label">max_tokens（输出上限，留空由服务端决定）</span>
+        <span class="label">max_tokens 输出上限</span>
         <input id="cfg-${side}-maxTokens" type="number" step="1000" min="128" placeholder="50000" />
       </label>
 
       <div class="actions">
-        <button class="btn ghost grow" id="btn-test-${side}">🔌 测试连接</button>
+        <button class="btn ghost grow" id="btn-test-${side}">测试连接</button>
         <button class="btn ghost" id="btn-clear-key-${side}" title="清除已保存的 Key">清除 Key</button>
       </div>
       <div class="api-status pending" id="status-${side}"><span class="status-dot"></span><span>未测试</span></div>

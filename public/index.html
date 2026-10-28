@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>多智能体辩论平台</title>
   <link rel="stylesheet" href="/style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⚔️</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%231B1D19'/><text x='16' y='23' font-size='19' font-family='serif' text-anchor='middle' fill='%23E9EAE4'>辩</text></svg>" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="brand-icon">⚔</span>
+      <span class="brand-icon" aria-hidden="true">辩</span>
       <div class="brand-text">
         <h1>多智能体辩论平台<span class="ver" id="build-tag" title="服务端版本"></span></h1>
         <p>两大模型 API · 正反方自动对抗 · 全程实时观战</p>
@@ -20,9 +20,9 @@
       <div class="conn" id="conn-status" title="连接状态">
         <span class="dot" id="conn-dot"></span><span id="conn-text">空闲</span>
       </div>
-      <button class="btn ghost icon-btn-theme" id="btn-theme" title="切换浅色 / 深色模式">🌙</button>
-      <button class="btn ghost" id="btn-export" title="导出为 Markdown">⤓ 导出</button>
-      <button class="btn primary" id="btn-settings">⚙ 设置</button>
+      <button class="btn ghost icon-btn-theme" id="btn-theme" title="切换浅色 / 深色模式">◐</button>
+      <button class="btn ghost" id="btn-export" title="导出为 Markdown">导出</button>
+      <button class="btn primary" id="btn-settings">设置</button>
     </div>
   </header>
 
@@ -30,8 +30,8 @@
     <aside class="sidebar">
       <section class="card">
         <div class="mode-switch" id="mode-switch">
-          <button class="mode-btn active" data-mode="debate" title="两个模型就一个辩题正反交锋">⚔ 辩论模式</button>
-          <button class="mode-btn" data-mode="chat" title="两个模型自由聊天，不设辩题与规则">💬 自由聊天</button>
+          <button class="mode-btn active" data-mode="debate" title="两个模型就一个辩题正反交锋">辩论模式</button>
+          <button class="mode-btn" data-mode="chat" title="两个模型自由聊天，不设辩题与规则">自由聊天</button>
         </div>
 
         <div class="field" id="topic-field">
@@ -74,13 +74,13 @@
         </label>
 
         <div class="actions">
-          <button class="btn primary grow" id="btn-start" disabled>▶ 开始辩论</button>
-          <button class="btn danger" id="btn-stop" disabled>■ 停止</button>
-          <button class="btn ghost" id="btn-clear">✕ 清空</button>
+          <button class="btn primary grow" id="btn-start" disabled>开始辩论</button>
+          <button class="btn danger" id="btn-stop" disabled>停止</button>
+          <button class="btn ghost" id="btn-clear">清空</button>
         </div>
 
         <div class="notice" id="setup-notice" hidden>
-          还没有接入模型 API，点击右上角 <b>⚙ 设置</b> 填写正方与反方两个大模型的接口信息。
+          还没有接入模型 API，点击右上角 <b>设置</b> 填写正方与反方两个大模型的接口信息。
         </div>
       </section>
 
@@ -130,7 +130,7 @@
 
       <div class="chat" id="chat">
         <div class="empty" id="empty-hint">
-          <div class="empty-icon">⚔</div>
+          <div class="empty-icon" aria-hidden="true">辩</div>
           <p>在左侧输入辩题，配置好两个大模型 API，即可开始一场正反方对决。</p>
         </div>
       </div>
