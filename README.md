@@ -18,6 +18,10 @@
 
 ![自由聊天](docs/screenshot-chat.png)
 
+**深色模式**：右上角一键切换，夜间观战更护眼。
+
+![深色模式](docs/screenshot-dark.png)
+
 ---
 
 ## 一、一键启动
