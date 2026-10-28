@@ -345,7 +345,7 @@ export class DebateSession {
       this.recordUsage(res);
     } catch (err) {
       if (isAbortError(err) || this.controller.signal.aborted) {
-        this.emit({ type: 'turn_end', side, phase, round, text, aborted: true });
+        this.emit({ type: 'turn_end', side, phase, round, text, aborted: true, usage: { ...this.usage } });
         this.transcript.push({
           side, role: agent.role, agent: agent.name, phase, round, title, text, ts: Date.now(), aborted: true,
         });
@@ -359,7 +359,8 @@ export class DebateSession {
       throw err;
     }
 
-    this.emit({ type: 'turn_end', side, phase, round, text });
+    // 带上累计用量：前端据此在辩论进行中就实时更新统计，不必等到全部结束
+    this.emit({ type: 'turn_end', side, phase, round, text, usage: { ...this.usage } });
     this.transcript.push({
       side, role: agent.role, agent: agent.name, phase, round, title, text, ts: Date.now(),
     });
@@ -460,7 +461,7 @@ export class DebateSession {
       return;
     }
 
-    this.emit({ type: 'judge_end', text });
+    this.emit({ type: 'judge_end', text, usage: { ...this.usage } });
     this.transcript.push({
       side: 'judge', role: '评委', agent: source.name, phase: 'judge', round: 0,
       title: '评委点评', text, ts: Date.now(),

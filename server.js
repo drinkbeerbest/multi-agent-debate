@@ -24,7 +24,7 @@ const HOST = process.env.HOST || '127.0.0.1';
  * 构建版本号：改动引擎（服务端逻辑）后请同步 +1，
  * 前端会显示这个版本，方便确认浏览器连的是不是重启后的新服务。
  */
-const BUILD = '2026-10-28.10';
+const BUILD = '2026-10-28.11';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

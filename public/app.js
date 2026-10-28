@@ -486,6 +486,24 @@ function updateMessage(msg) {
   arenaScroll();
 }
 
+/**
+ * 更新顶部「Token」统计。
+ * 有用量就显示数字；厂商完全不返回用量时显示破折号，
+ * 而不是拿 0 冒充「统计到了，只是为零」。
+ */
+function applyUsage(usage) {
+  if (!usage) return;
+  const total = (usage.promptTokens || 0) + (usage.completionTokens || 0);
+  const cell = $('stat-tokens');
+  if (total === 0 && (usage.calls || 0) > 0) {
+    cell.textContent = '—';
+    cell.title = '当前模型未返回 token 用量';
+    return;
+  }
+  cell.textContent = String(total);
+  cell.title = '';
+}
+
 function pushError(message) {
   const msg = {
     kind: 'error',
@@ -646,6 +664,8 @@ function handleEvent(evt) {
       break;
     case 'turn_end':
     case 'judge_end': {
+      // 先刷用量：辩论可能还要跑很久，不能等全部结束才更新
+      applyUsage(evt.usage);
       if (!streamingMsg) break;
       if (evt.text && evt.text.length > streamingMsg.text.length) {
         streamingMsg.text = evt.text;
@@ -685,8 +705,7 @@ function handleEvent(evt) {
       $('btn-start').disabled = false;
       $('btn-stop').disabled = true;
       // 注意：这里不要关闭 SSE —— 辩论结束后用户仍可追问，回应需要继续推送
-      const usage = evt.usage || {};
-      $('stat-tokens').textContent = String((usage.promptTokens || 0) + (usage.completionTokens || 0));
+      applyUsage(evt.usage);
       if (evt.reason === 'completed') {
         setConn('已完成', 'live');
         toast(isChatMode() ? '聊天结束' : '辩论结束', 'ok');

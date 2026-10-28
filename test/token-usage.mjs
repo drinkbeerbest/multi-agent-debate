@@ -49,11 +49,15 @@ async function runSession(cfg, rounds = 1) {
     topic: '测试', mode: MODES.CHAT, pro: cfg, con: cfg,
     debate: { rounds, wordLimit: 100, judgeEnabled: false },
   });
+  const turnEnds = [];
   await new Promise((resolve) => {
-    session.on((e) => { if (e.type === 'done') resolve(); });
+    session.on((e) => {
+      if (e.type === 'turn_end') turnEnds.push(e.usage);
+      if (e.type === 'done') resolve();
+    });
     session.run();
   });
-  return session;
+  return { session, turnEnds };
 }
 
 async function main() {
@@ -79,10 +83,17 @@ async function main() {
   });
   await new Promise((r) => good.listen(8931, '127.0.0.1', r));
 
-  const s1 = await runSession(cfgFor(8931));
+  const { session: s1, turnEnds } = await runSession(cfgFor(8931));
   check('prompt token 统计正确', s1.usage.promptTokens === 240, `${s1.usage.promptTokens}`);
   check('completion token 统计正确', s1.usage.completionTokens === 160, `${s1.usage.completionTokens}`);
   check('调用次数统计正确', s1.usage.calls === 2, `${s1.usage.calls}`);
+  // 前端靠 turn_end 里的 usage 做实时刷新：不能等到全部结束才有值
+  check('每次发言结束都推送累计用量',
+    turnEnds.length === 2 && turnEnds.every((u) => u && typeof u.promptTokens === 'number'),
+    `turn_end ${turnEnds.length} 条`);
+  check('首轮结束即已有用量（非零）', turnEnds[0]?.promptTokens === 120,
+    `首轮 ${turnEnds[0]?.promptTokens}`);
+  check('末轮为累计值', turnEnds[1]?.promptTokens === 240, `末轮 ${turnEnds[1]?.promptTokens}`);
   good.close();
 
   // ---------- 场景 2：厂商不返回 usage ----------
@@ -96,7 +107,7 @@ async function main() {
   });
   await new Promise((r) => noUsage.listen(8932, '127.0.0.1', r));
 
-  const s2 = await runSession(cfgFor(8932));
+  const { session: s2 } = await runSession(cfgFor(8932));
   check('token 为 0 属于预期', s2.usage.promptTokens === 0 && s2.usage.completionTokens === 0);
   check('调用次数仍照常累加', s2.usage.calls === 2, `${s2.usage.calls}`);
   noUsage.close();
@@ -120,7 +131,7 @@ async function main() {
   });
   await new Promise((r) => strict.listen(8933, '127.0.0.1', r));
 
-  const s3 = await runSession(cfgFor(8933));
+  const { session: s3 } = await runSession(cfgFor(8933));
   check('首次请求被 400 拒绝', rejected);
   check('去掉字段后重试成功', retried);
   check('辩论仍正常结束', s3.state === 'done', s3.state);
